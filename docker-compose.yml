@@ -1,0 +1,10 @@
+﻿services:  
+  callbackserverpromocodes:
+    image: callbackserverpromocodes
+    build:
+      context: .
+      dockerfile: CallbackServerPromoCodes/Dockerfile
+    ports:
+      - "8001:80"
+    volumes:
+      - [path]:/mnt/
