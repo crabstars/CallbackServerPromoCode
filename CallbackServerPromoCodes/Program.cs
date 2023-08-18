@@ -15,13 +15,13 @@ var loggingPath = "/mnt/logs/promo-code.txt";
 #if DEBUG
 loggingPath = "logs/promo-code.txt";
 #endif
-var logger = new LoggerConfiguration()
+var serilogLogger = new LoggerConfiguration()
     .WriteTo.Console()
     .WriteTo.File(loggingPath)
     .MinimumLevel.Warning()
     .CreateLogger();
 // Register Serilog
-builder.Logging.AddSerilog(logger);
+builder.Logging.AddSerilog(serilogLogger);
 
 
 builder.Services.AddDbContext<AppDbContext>();
@@ -60,10 +60,7 @@ app.MapPost("api/youtube-feed",
    
 }).Accepts<HttpRequest>("application/xml");
 
-app.MapGet("api/youtube-feed", async (AppDbContext context) =>
-{
-    return Results.Ok(context.Videos.ToList());
-});
+app.MapGet("api/youtube-feed", async (AppDbContext context) => Results.Ok(context.Videos.ToList()));
 
 
 app.Run();
