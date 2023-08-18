@@ -60,7 +60,21 @@ app.MapPost("api/youtube-feed",
    
 }).Accepts<HttpRequest>("application/xml");
 
-app.MapGet("api/youtube-feed", async (AppDbContext context) => Results.Ok(context.Videos.ToList()));
+
+app.MapGet("api/youtube-feed", c => 
+    {
+        if (!c.Request.Query.TryGetValue("hub.challenge", out var hubChallengeValue))
+            return Task.FromResult(Results.BadRequest("Missing hub.challenge parameter."));
+       
+        var hubChallenge = hubChallengeValue.ToString();
+
+
+        return Task.FromResult(Results.Ok(hubChallenge));
+
+    });
+
+
+app.MapGet("api/videos", async (AppDbContext context) => Results.Ok(context.Videos.ToList()));
 
 
 app.Run();
