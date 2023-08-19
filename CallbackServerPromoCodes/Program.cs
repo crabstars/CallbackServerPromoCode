@@ -1,5 +1,6 @@
 using System.Xml.Serialization;
 using CallbackServerPromoCodes;
+using CallbackServerPromoCodes.Helper;
 using CallbackServerPromoCodes.Models;
 using CallbackServerPromoCodes.XML.YouTubeFeedSerialization;
 using Microsoft.EntityFrameworkCore;
@@ -76,37 +77,14 @@ app.MapPost("api/callback",
     async (AppDbContext context, ILoggerFactory loggerFactory, HttpContext c) =>
     {
         var logger = loggerFactory.CreateLogger("index");
-        var reader = new StreamReader(c.Request.Body);
-        logger.LogInformation(await reader.ReadToEndAsync());
-        foreach (var key in c.Request.Headers.Values)
-        {
-            logger.LogInformation("{key}:{value}", key, c.Request.Headers[key]);
-        }
-        
+
+        using var reader2 = new StreamReader(c.Request.Body);
+        var txt = await reader2.ReadToEndAsync();
+        c.Request.Headers.TryGetValue("X-Hub-Signature", out var signature);
+        logger.LogInformation("Sig:{sig}", signature);
+        logger.LogInformation("Input:{txt}", txt);
+        logger.LogInformation("{match}", Hmac.Verify(txt, signature));
         return Results.Ok();
-
-        var serializer = new XmlSerializer(typeof(Feed));
-        var xmlContent = await reader.ReadToEndAsync();
-        try
-        {
-            using var stringReader = new StringReader(xmlContent);
-            var result = (Feed)serializer.Deserialize(stringReader);
-            if (result is null)
-            {
-                logger.LogError("deserialized result is null, XML-Data: {xmlContent}",
-                    xmlContent);
-                return Results.BadRequest("Could not deserialize xml");
-            }
-
-            await context.Videos.AddAsync(new Video(result.Entry.VideoId, result.Entry.ChannelId));
-            await context.SaveChangesAsync();
-            return Results.Ok();
-        }
-        catch (Exception e)
-        {
-            logger.LogError("Exception: {e}, XML-Data: {xmlContent}", e, xmlContent);
-            return Results.BadRequest("Invalid XML data.");
-        }
     }).Accepts<HttpRequest>("application/xml");
 
 
