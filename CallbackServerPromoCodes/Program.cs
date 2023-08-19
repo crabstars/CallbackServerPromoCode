@@ -78,8 +78,11 @@ app.MapPost("api/callback",
         var logger = loggerFactory.CreateLogger("index");
         var reader = new StreamReader(c.Request.Body);
         logger.LogInformation(await reader.ReadToEndAsync());
-        c.Request.Headers.TryGetValue("X-Hub-Signature", out var eventName);
-        logger.LogInformation("X-Hub-Signature: {eventName}", eventName.ToString());
+        foreach (var key in c.Request.Headers.Values)
+        {
+            logger.LogInformation("{key}:{value}", key, c.Request.Headers[key]);
+        }
+        
         return Results.Ok();
 
         var serializer = new XmlSerializer(typeof(Feed));
