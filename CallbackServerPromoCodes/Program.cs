@@ -2,7 +2,6 @@ using System.Xml.Serialization;
 using CallbackServerPromoCodes;
 using CallbackServerPromoCodes.Models;
 using CallbackServerPromoCodes.XML.YouTubeFeedSerialization;
-using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.EntityFrameworkCore;
 using Serilog;
 
@@ -31,46 +30,44 @@ using var scope = app.Services.CreateScope();
 var dbContext = scope.ServiceProvider.GetRequiredService<AppDbContext>();
 dbContext.Database.Migrate();
 
-app.MapPost("api/youtube-feed", 
-    async (AppDbContext context, ILoggerFactory loggerFactory, HttpContext c) => 
-{
-    var logger = loggerFactory.CreateLogger("index");
-    var reader = new StreamReader(c.Request.Body);
-    var serializer = new XmlSerializer(typeof(Feed));
-    var xmlContent = await reader.ReadToEndAsync();
-    try
+app.MapPost("api/youtube-feed",
+    async (AppDbContext context, ILoggerFactory loggerFactory, HttpContext c) =>
     {
-        using var stringReader = new StringReader(xmlContent);
-        var result = (Feed)serializer.Deserialize(stringReader);
-        if (result is null)
+        var logger = loggerFactory.CreateLogger("index");
+        var reader = new StreamReader(c.Request.Body);
+        var serializer = new XmlSerializer(typeof(Feed));
+        var xmlContent = await reader.ReadToEndAsync();
+        try
         {
-            logger.LogError("deserialized result is null, XML-Data: {xmlContent}",
-                xmlContent);
-            return Results.BadRequest("Could not deserialize xml");
+            using var stringReader = new StringReader(xmlContent);
+            var result = (Feed)serializer.Deserialize(stringReader);
+            if (result is null)
+            {
+                logger.LogError("deserialized result is null, XML-Data: {xmlContent}",
+                    xmlContent);
+                return Results.BadRequest("Could not deserialize xml");
+            }
+
+            await context.Videos.AddAsync(new Video(result.Entry.VideoId, result.Entry.ChannelId));
+            await context.SaveChangesAsync();
+            return Results.Ok(result.Entry.VideoId);
         }
-
-        await context.Videos.AddAsync(new Video(result.Entry.VideoId, result.Entry.ChannelId));
-        await context.SaveChangesAsync();
-        return Results.Ok(result.Entry.VideoId);
-    }
-    catch (Exception e)
-    {
-        logger.LogError("Exception: {e}, XML-Data: {xmlContent}", e, xmlContent);
-        return Results.BadRequest("Invalid XML data.");
-    }
-   
-}).Accepts<HttpRequest>("application/xml");
+        catch (Exception e)
+        {
+            logger.LogError("Exception: {e}, XML-Data: {xmlContent}", e, xmlContent);
+            return Results.BadRequest("Invalid XML data.");
+        }
+    }).Accepts<HttpRequest>("application/xml");
 
 
-app.MapGet("api/youtube-feed", (HttpContext c) => 
+app.MapGet("api/youtube-feed", (HttpContext c) =>
 {
     if (!c.Request.Query.TryGetValue("hub.challenge", out var hubChallengeValue))
     {
         c.Response.StatusCode = 404;
         c.Response.WriteAsync("missing hub.challenge");
     }
-       
-   
+
     var hubChallenge = hubChallengeValue.ToString();
 
     c.Response.WriteAsync(hubChallenge);
