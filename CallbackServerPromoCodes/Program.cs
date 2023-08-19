@@ -2,6 +2,7 @@ using System.Xml.Serialization;
 using CallbackServerPromoCodes;
 using CallbackServerPromoCodes.Models;
 using CallbackServerPromoCodes.XML.YouTubeFeedSerialization;
+using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.EntityFrameworkCore;
 using Serilog;
 
@@ -64,14 +65,16 @@ app.MapPost("api/youtube-feed",
 app.MapGet("api/youtube-feed", (HttpContext c) => 
 {
     if (!c.Request.Query.TryGetValue("hub.challenge", out var hubChallengeValue))
-        return Results.BadRequest("Missing hub.challenge parameter.");
+    {
+        c.Response.StatusCode = 404;
+        c.Response.WriteAsync("missing hub.challenge");
+    }
+       
    
     var hubChallenge = hubChallengeValue.ToString();
 
-
-    return Results.Ok(hubChallenge);
+    c.Response.WriteAsync(hubChallenge);
 });
-
 
 app.MapGet("api/videos", (AppDbContext context) => Results.Ok(context.Videos.ToList()));
 
