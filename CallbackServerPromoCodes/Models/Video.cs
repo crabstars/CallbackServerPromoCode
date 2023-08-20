@@ -1,5 +1,9 @@
+using System.ComponentModel.DataAnnotations;
+using Microsoft.EntityFrameworkCore;
+
 namespace CallbackServerPromoCodes.Models;
 
+[Index(nameof(VideoId))]
 public class Video
 {
     public Video(string videoId, string channelId)
@@ -8,8 +12,8 @@ public class Video
         ChannelId = channelId;
         Processed = false;
     }
-    public int Id { get; set; }
-
+    
+    [Key]
     public string VideoId { get; set; }
 
     public string ChannelId { get; set; }
