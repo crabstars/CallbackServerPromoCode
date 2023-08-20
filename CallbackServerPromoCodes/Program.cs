@@ -1,28 +1,21 @@
-using System.Xml.Serialization;
 using CallbackServerPromoCodes;
 using CallbackServerPromoCodes.Helper;
-using CallbackServerPromoCodes.Models;
-using CallbackServerPromoCodes.XML.YouTubeFeedSerialization;
+using CallbackServerPromoCodes.Manager;
 using Microsoft.EntityFrameworkCore;
 using Serilog;
+using ConfigurationProvider = CallbackServerPromoCodes.Provider.ConfigurationProvider;
 
 var builder = WebApplication.CreateBuilder(args);
+var configuration = ConfigurationProvider.GetConfiguration();
 
-// remove default logging providers
-builder.Logging.ClearProviders();
-// Serilog configuration    
-// TODO change to configuration
-var loggingPath = "/mnt/logs/promo-code.txt";
-#if DEBUG
-loggingPath = "logs/promo-code.txt";
-#endif
+var loggingPath = configuration["Logging:Path:Serilog"] ?? "logs/promo-code.txt";
 var serilogLogger = new LoggerConfiguration()
     .WriteTo.Console()
     .WriteTo.File(loggingPath)
     .MinimumLevel.Information()
     .CreateLogger();
+builder.Logging.ClearProviders();
 builder.Logging.AddSerilog(serilogLogger);
-
 
 builder.Services.AddDbContext<AppDbContext>();
 var app = builder.Build();
@@ -34,25 +27,25 @@ app.MapPost("api/youtube-feed",
     async (AppDbContext context, ILoggerFactory loggerFactory, HttpContext c) =>
     {
         var logger = loggerFactory.CreateLogger("controller");
-        var reader = new StreamReader(c.Request.Body);
-        var serializer = new XmlSerializer(typeof(Feed));
+        using var reader = new StreamReader(c.Request.Body);
         var xmlContent = await reader.ReadToEndAsync();
+
+        c.Request.Headers.TryGetValue("X-Hub-Signature", out var signature);
+        // return 2xx to ack receipt even if wrong sig (point 8) http://pubsubhubbub.github.io/PubSubHubbub/pubsubhubbub-core-0.4.html
+        if (!Hmac.Verify(logger, xmlContent, signature))
+            return Results.Ok("Wrong signature");
+
         try
         {
-            using var stringReader = new StringReader(xmlContent);
-            var result = (Feed)serializer.Deserialize(stringReader);
+            var result = XmlManager.ToYoutubeFeed(xmlContent);
             if (result is null)
             {
-                logger.LogError("deserialized result is null, XML-Data: {xmlContent}",
-                    xmlContent);
+                logger.LogError("deserialized result is null, XML-Data: {xmlContent}", xmlContent);
                 return Results.BadRequest("Could not deserialize xml");
             }
 
-            if (await context.Videos.AnyAsync(v => v.VideoId == result.Entry.VideoId))
-                return Results.Ok("Video already added");
-            await context.Videos.AddAsync(new Video(result.Entry.VideoId, result.Entry.ChannelId));
-            await context.SaveChangesAsync();
-            return Results.Ok(result.Entry.VideoId);
+            await DbManager.AddVideo(result, context);
+            return Results.Ok();
         }
         catch (Exception e)
         {
@@ -71,35 +64,6 @@ app.MapGet("api/youtube-feed", (HttpContext c) =>
     }
 
     var hubChallenge = hubChallengeValue.ToString();
-
-    c.Response.WriteAsync(hubChallenge);
-});
-
-app.MapPost("api/callback",
-    async (AppDbContext context, ILoggerFactory loggerFactory, HttpContext c) =>
-    {
-        var logger = loggerFactory.CreateLogger("index");
-
-        using var reader2 = new StreamReader(c.Request.Body);
-        var txt = await reader2.ReadToEndAsync();
-        c.Request.Headers.TryGetValue("X-Hub-Signature", out var signature);
-        logger.LogInformation("Sig:{sig}", signature);
-        logger.LogInformation("Input:{txt}", txt);
-        logger.LogInformation("{match}", Hmac.Verify(txt, signature));
-        return Results.Ok();
-    }).Accepts<HttpRequest>("application/xml");
-
-
-app.MapGet("api/callback", (HttpContext c) =>
-{
-    if (!c.Request.Query.TryGetValue("hub.challenge", out var hubChallengeValue))
-    {
-        c.Response.StatusCode = 404;
-        c.Response.WriteAsync("missing hub.challenge");
-    }
-
-    var hubChallenge = hubChallengeValue.ToString();
-
     c.Response.WriteAsync(hubChallenge);
 });
 
