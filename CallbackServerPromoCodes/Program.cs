@@ -33,7 +33,7 @@ dbContext.Database.Migrate();
 app.MapPost("api/youtube-feed",
     async (AppDbContext context, ILoggerFactory loggerFactory, HttpContext c) =>
     {
-        var logger = loggerFactory.CreateLogger("index");
+        var logger = loggerFactory.CreateLogger("controller");
         var reader = new StreamReader(c.Request.Body);
         var serializer = new XmlSerializer(typeof(Feed));
         var xmlContent = await reader.ReadToEndAsync();
@@ -48,6 +48,8 @@ app.MapPost("api/youtube-feed",
                 return Results.BadRequest("Could not deserialize xml");
             }
 
+            if (await context.Videos.AnyAsync(v => v.VideoId == result.Entry.VideoId))
+                return Results.Ok("Video already added");
             await context.Videos.AddAsync(new Video(result.Entry.VideoId, result.Entry.ChannelId));
             await context.SaveChangesAsync();
             return Results.Ok(result.Entry.VideoId);
