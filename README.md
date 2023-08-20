@@ -1,7 +1,13 @@
-Change in appsettings.json:
+## Changes in appsettings.json
 
-1. the secret for HmacPubSubHub
-2. When using without docker
-   2.1 ConnectionStrings:Sqlite to "DB/PromoCodes.db" 
-   2.2 Path:Serilog to "logs/logfile.txt"
-3. If using docker-compose make sure to change the "[path]" value under volumes to an actual path on your os like "/mnt/" for linux
+1. **HmacPubSubHub Secret**: Update the secret for HmacPubSubHub as required.
+
+2. **When Using Without Docker**:
+
+   - Update `ConnectionStrings:Sqlite` to `"DB/PromoCodes.db"`.
+
+   - Update `Path:Serilog` to `"logs/logfile.txt"`.
+
+3. **If Using Docker-Compose**:
+
+   - Ensure that you change the `"[path]"` value under volumes to an actual path on your operating system. For example, use `"/mnt/"` for Linux.
