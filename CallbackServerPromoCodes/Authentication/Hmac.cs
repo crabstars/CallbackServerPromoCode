@@ -1,28 +1,27 @@
 using System.Security.Cryptography;
 using System.Text;
+using CallbackServerPromoCodes.Constants;
 using ConfigurationProvider = CallbackServerPromoCodes.Provider.ConfigurationProvider;
 
-namespace CallbackServerPromoCodes.Helper;
+namespace CallbackServerPromoCodes.Authentication;
 
 public static class Hmac
 {
     private const string Sha1Prefix = "sha1=";
-
-    private const string SecretPath = "Secrets:HmacPubSubHub";
 
     private static readonly HMACSHA1 HmacSha1;
 
     static Hmac()
     {
         var configuration = ConfigurationProvider.GetConfiguration();
-        var secret = configuration.GetSection(SecretPath).Value;
+        var secret = configuration.GetSection(AppSettings.HmacSecret).Value;
 
         if (string.IsNullOrWhiteSpace(secret))
-            throw new InvalidOperationException($"Secret key not found in appsettings.json for path: {SecretPath}");
+            throw new InvalidOperationException(
+                $"Secret key not found in appsettings.json for path: {AppSettings.HmacSecret}");
 
         var secretBytes = Encoding.UTF8.GetBytes(secret);
 
-        // Create the HMACSHA1 instance once and reuse it
         HmacSha1 = new HMACSHA1(secretBytes);
     }
 
