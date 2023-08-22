@@ -16,7 +16,7 @@ public class ApiKeyEndpointFilter : IEndpointFilter
         if (!context.HttpContext.Request.Headers.TryGetValue(Auth.ApiKeyHeader, out var requestApiKey))
             return TypedResults.Unauthorized();
 
-        var apiKey = _configuration.GetValue<string>(AppSettings.ApiKey);
+        var apiKey = _configuration.GetValue<string>(AppSettings.CallbackApiKey);
         if (apiKey == null || !apiKey.Equals(requestApiKey)) return TypedResults.Unauthorized();
 
         return await next(context);

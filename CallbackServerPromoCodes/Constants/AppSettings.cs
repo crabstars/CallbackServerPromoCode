@@ -8,5 +8,5 @@ public static class AppSettings
 
     public const string DbConnection = "ConnectionStrings:Sqlite";
 
-    public const string ApiKey = "Secrets:ApiKey";
+    public const string CallbackApiKey = "Secrets:CallbackApiKey";
 }

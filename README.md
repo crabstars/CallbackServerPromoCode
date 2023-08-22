@@ -2,7 +2,7 @@
 
 1. **HmacPubSubHub Secret**: Update the secret for HmacPubSubHub as required.
 
-2.  **Api Key**: Update the value for ApiKey under secrets. 
+2. **Callbacl Api Key**: Update the value for CallbackApiKey under secrets, which you use to talk to the api. 
 
 3. **When Using Without Docker**:
 
