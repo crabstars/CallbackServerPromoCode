@@ -78,6 +78,5 @@ app.MapDelete("api/youtube-feed/creator", () => { }).AddEndpointFilter<ApiKeyEnd
 
 app.MapGet("api/videos", (AppDbContext context)
     => Results.Ok(context.Videos.ToList())).AddEndpointFilter<ApiKeyEndpointFilter>();
-;
 
 app.Run();
