@@ -45,7 +45,14 @@ app.MapPost("api/youtube-feed",
                 return Results.BadRequest("Could not deserialize xml");
             }
 
-            var video = await DbManager.AddVideo(result, context);
+            var channel = await context.Channels.FirstOrDefaultAsync(c => c.Id == result.Entry.ChannelId);
+            if (channel is null)
+            {
+                logger.LogError("Channel was not added {channelId}", result.Entry.ChannelId);
+                return Results.BadRequest("Could not deserialize xml");
+            }
+
+            var video = await DbManager.AddVideo(result, channel, context);
             return Results.Ok(video);
         }
         catch (Exception e)

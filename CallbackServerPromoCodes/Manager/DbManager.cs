@@ -6,12 +6,12 @@ namespace CallbackServerPromoCodes.Manager;
 
 public static class DbManager
 {
-    public static async Task<Video> AddVideo(YoutubeFeed feed, AppDbContext context)
+    public static async Task<Video> AddVideo(YoutubeFeed feed, Channel channel, AppDbContext context)
     {
-        var video = await context.Videos.FirstOrDefaultAsync(v => v.VideoId == feed.Entry.VideoId);
+        var video = await context.Videos.FirstOrDefaultAsync(v => v.Id == feed.Entry.VideoId);
         if (video is not null)
             return video;
-        video = new Video(feed.Entry.VideoId, feed.Entry.ChannelId);
+        video = new Video(feed.Entry.VideoId, feed.Entry.Link.Href, channel);
         await context.Videos.AddAsync(video);
         await context.SaveChangesAsync();
         return video;

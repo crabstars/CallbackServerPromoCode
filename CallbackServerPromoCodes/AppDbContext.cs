@@ -9,6 +9,10 @@ public class AppDbContext : DbContext
 {
     public DbSet<Video> Videos { get; set; }
 
+    public DbSet<Channel> Channels { get; set; }
+
+    public DbSet<Promotion> Promotions { get; set; }
+
     protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
     {
         var configuration = ConfigurationProvider.GetConfiguration();
