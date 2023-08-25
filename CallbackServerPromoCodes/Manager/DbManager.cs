@@ -16,4 +16,16 @@ public static class DbManager
         await context.SaveChangesAsync();
         return video;
     }
+
+    public static async Task<Channel?> AddChannel(AppDbContext context, Channel channel,
+        CancellationToken cancellationToken)
+    {
+        if (context.Channels.Any(c => c.Id == channel.Id))
+            return null;
+
+        await context.Channels.AddAsync(channel, cancellationToken);
+        await context.SaveChangesAsync(cancellationToken);
+
+        return channel;
+    }
 }

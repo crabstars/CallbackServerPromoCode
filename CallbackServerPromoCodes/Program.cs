@@ -3,7 +3,6 @@ using CallbackServerPromoCodes.Authentication;
 using CallbackServerPromoCodes.Constants;
 using CallbackServerPromoCodes.Manager;
 using Microsoft.EntityFrameworkCore;
-using Newtonsoft.Json.Linq;
 using Serilog;
 using ConfigurationProvider = CallbackServerPromoCodes.Provider.ConfigurationProvider;
 
@@ -14,53 +13,59 @@ var loggingPath = configuration[AppSettings.Serilog] ?? "logs/promo-code.txt";
 var serilogLogger = new LoggerConfiguration()
     .WriteTo.Console()
     .WriteTo.File(loggingPath)
-    .MinimumLevel.Information()
+    .MinimumLevel.Debug()
     .CreateLogger();
 builder.Logging.ClearProviders();
 builder.Logging.AddSerilog(serilogLogger);
 
 builder.Services.AddDbContext<AppDbContext>();
+builder.Services.AddHttpClient();
+
 var app = builder.Build();
 using var scope = app.Services.CreateScope();
 var dbContext = scope.ServiceProvider.GetRequiredService<AppDbContext>();
 dbContext.Database.Migrate();
 
 app.MapPost("api/youtube-feed",
-    async (AppDbContext context, ILoggerFactory loggerFactory, HttpContext c) =>
+    async (AppDbContext appDbContext, ILoggerFactory loggerFactory, HttpContext httpContext) =>
     {
-        var logger = loggerFactory.CreateLogger("controller");
-        using var reader = new StreamReader(c.Request.Body);
-        var xmlContent = await reader.ReadToEndAsync();
+        var logger = loggerFactory.CreateLogger("post-youtube-feed");
+        using var reader = new StreamReader(httpContext.Request.Body);
+        var requestBody = await reader.ReadToEndAsync();
 
-        c.Request.Headers.TryGetValue(Auth.PubSubHubSig, out var signature);
+        httpContext.Request.Headers.TryGetValue(Auth.PubSubHubSig, out var signature);
         // return 2xx to ack receipt even if wrong sig (point 8) http://pubsubhubbub.github.io/PubSubHubbub/pubsubhubbub-core-0.4.html
-        if (!Hmac.Verify(logger, xmlContent, signature))
+        if (!Hmac.Verify(logger, requestBody, signature))
+        {
+            logger.LogError("Got request with wrong signature. Body: {body}", requestBody);
             return Results.Ok("Wrong signature");
+        }
 
         try
         {
-            var result = XmlManager.ToYoutubeFeed(xmlContent);
-            if (result is null)
+            var xmlContent = XmlManager.ToYoutubeFeed(requestBody);
+            if (xmlContent is null)
             {
-                logger.LogError("deserialized result is null, XML-Data: {xmlContent}", xmlContent);
-                return Results.BadRequest("Could not deserialize xml");
+                logger.LogError("deserialized result is null, XML-Data: {xmlContent}", requestBody);
+                return Results.Ok("Could not deserialize xml");
             }
 
-            var channel = await context.Channels.FirstOrDefaultAsync(c => c.Id == result.Entry.ChannelId);
-            if (channel is null)
+            var channel = await appDbContext.Channels.FirstOrDefaultAsync(c => c.Id == xmlContent.Entry.ChannelId);
+            if (channel is null || !channel.Subscribed || !channel.Activated)
             {
-                logger.LogError("Channel was not added {channelId}", result.Entry.ChannelId);
-                return Results.BadRequest("Could not deserialize xml");
+                logger.LogError("Channel was not added {channelId} or is not active", xmlContent.Entry.ChannelId);
+                return Results.Ok("Missing Channel");
             }
 
-            var video = await DbManager.AddVideo(result, channel, context);
-            return Results.Ok(video);
+            var video = await DbManager.AddVideo(xmlContent, channel, appDbContext);
+            logger.LogDebug("VideoId: {id}, Link: {link}", video.Id, video.Link);
         }
         catch (Exception e)
         {
-            logger.LogError("Exception: {e}, XML-Data: {xmlContent}", e, xmlContent);
-            return Results.BadRequest("Invalid XML data.");
+            logger.LogError("Exception: {e}, XML-Data: {xmlContent}", e, requestBody);
         }
+
+        return Results.Ok();
     }).Accepts<HttpRequest>("application/xml");
 
 app.MapGet("api/youtube-feed", (HttpContext c) =>
@@ -76,58 +81,36 @@ app.MapGet("api/youtube-feed", (HttpContext c) =>
 });
 
 
-app.MapPost("api/youtube-feed/creator", async (string name, bool subscribe) =>
+app.MapPost("api/youtube-feed/creator", async (AppDbContext context, string name,
+    IHttpClientFactory httpClientFactory, ILoggerFactory loggerFactory, CancellationToken cancellationToken) =>
 {
-    // check if already exists
-    var httpClient = new HttpClient(); // POol or Factory
-    var config = ConfigurationProvider.GetConfiguration();
-    var responseBody = "";
+    var logger = loggerFactory.CreateLogger("post-youtube-feed-creator");
+    var httpClient = httpClientFactory.CreateClient();
+
     var apiKey = configuration.GetSection("Secrets:YoutubeApiKey").Value ??
                  throw new ArgumentException("Missing YoutubeApiKey in appsetting.json");
-    var apiUrl =
-        $"https://www.googleapis.com/youtube/v3/search?key={apiKey}&q={name}&type=channel&part=snippet"; // Replace with your API key
-    try
-    {
-        var response = await httpClient.GetAsync(apiUrl);
 
-        if (response.IsSuccessStatusCode)
-        {
-            // Read the content as a string
-            responseBody = await response.Content.ReadAsStringAsync();
+    var responseBody =
+        await RequestManager.GetResponseForYoutubeChannelsCall(apiKey, name, httpClient, logger, cancellationToken);
+    if (responseBody is null)
+        return Results.BadRequest("Error occured while calling youtube api, see logs");
 
-            // Now you can work with the response data (e.g., parse JSON)
-            Console.WriteLine(responseBody);
-        }
-        else
-        {
-            Console.WriteLine($"HTTP Error: {response.StatusCode}");
-        }
-    }
-    catch (HttpRequestException ex)
-    {
-        Console.WriteLine($"Request Error: {ex.Message}");
-    }
+    var channel = ParseManager.GetChannel(responseBody, logger);
+    if (channel is null)
+        return Results.BadRequest("No channel found");
 
-    var jsonObject = JObject.Parse(responseBody);
-    var items = (JArray)jsonObject["items"];
+    logger.LogDebug("ChannelId: {id}, Name: {link}", channel.Id, channel.Name);
+    if (await DbManager.AddChannel(context, channel, cancellationToken) is null)
+        return Results.Ok("Channel already inserted");
 
-    if (items.Count > 0)
-    {
-        // Get the "channelId" from the first item
-        var channelId = (string)items[0]["id"]["channelId"];
-        Console.WriteLine("Channel ID: " + channelId);
-    }
-    else
-    {
-        Console.WriteLine("No items found in the response.");
-    }
+    return Results.Ok("Channel inserted");
 }).AddEndpointFilter<ApiKeyEndpointFilter>();
 
 // TODO api call to change subscription
 
-app.MapGet("api/pubSubHubSubscription", async (string channelId, HttpContext c) =>
+app.MapGet("api/pubSubHubSubscription", async (string channelId, IHttpClientFactory httpClientFactory, HttpContext c) =>
 {
-    var httpClient = new HttpClient();
+    var httpClient = httpClientFactory.CreateClient();
     var hmacSecret = configuration.GetSection("Secrets:HmacPubSubHub").Value ??
                      throw new ArgumentException("Missing secret for HmacPubSubHub in appsetting.json");
 

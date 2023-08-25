@@ -1,3 +1,4 @@
+using System.ComponentModel;
 using Microsoft.EntityFrameworkCore;
 
 namespace CallbackServerPromoCodes.Models;
@@ -10,11 +11,11 @@ public class Channel
     {
     }
 
-    public Channel(string channelId, bool subscribed)
+    public Channel(string channelId, string name)
     {
         Id = channelId;
         Videos = new List<Video>();
-        Subscribed = subscribed;
+        Name = name;
     }
 
     public string Id { get; set; }
@@ -22,6 +23,14 @@ public class Channel
     public string Name { get; set; }
     public List<Video> Videos { get; set; }
 
-    // in PubSubHub Mode is set to Subscribe or Unsubscribe
+    /// <summary>
+    ///     in PubSubHub Mode is set to Subscribe or Unsubscribe
+    /// </summary>
     public bool Subscribed { get; set; }
+
+    /// <summary>
+    ///     if true worker tries to set Subscribed true if its false
+    /// </summary>
+    [DefaultValue(true)]
+    public bool Activated { get; set; } = true;
 }
