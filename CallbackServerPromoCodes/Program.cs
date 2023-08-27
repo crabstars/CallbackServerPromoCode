@@ -2,6 +2,7 @@ using CallbackServerPromoCodes;
 using CallbackServerPromoCodes.Authentication;
 using CallbackServerPromoCodes.Constants;
 using CallbackServerPromoCodes.Manager;
+using CallbackServerPromoCodes.Worker;
 using Microsoft.EntityFrameworkCore;
 using Serilog;
 using ConfigurationProvider = CallbackServerPromoCodes.Provider.ConfigurationProvider;
@@ -20,6 +21,9 @@ builder.Logging.AddSerilog(serilogLogger);
 
 builder.Services.AddDbContext<AppDbContext>();
 builder.Services.AddHttpClient();
+
+// Add background worker
+builder.Services.AddHostedService<ProcessVideo>();
 
 var app = builder.Build();
 using var scope = app.Services.CreateScope();
@@ -88,10 +92,11 @@ app.MapPost("api/youtube-feed/creator", async (AppDbContext context, string name
     var httpClient = httpClientFactory.CreateClient();
 
     var apiKey = configuration.GetSection("Secrets:YoutubeApiKey").Value ??
-                 throw new ArgumentException("Missing YoutubeApiKey in appsetting.json");
+                 throw new ArgumentException("Missing YoutubeApiKey in appsettings.json");
 
     var responseBody =
-        await RequestManager.GetResponseForYoutubeChannelsCall(apiKey, name, httpClient, logger, cancellationToken);
+        await YoutubeRequestManager.GetResponseForYoutubeChannelsCall(apiKey, name, httpClient, logger,
+            cancellationToken);
     if (responseBody is null)
         return Results.BadRequest("Error occured while calling youtube api, see logs");
 
@@ -112,7 +117,7 @@ app.MapGet("api/pubSubHubSubscription", async (string channelId, IHttpClientFact
 {
     var httpClient = httpClientFactory.CreateClient();
     var hmacSecret = configuration.GetSection("Secrets:HmacPubSubHub").Value ??
-                     throw new ArgumentException("Missing secret for HmacPubSubHub in appsetting.json");
+                     throw new ArgumentException("Missing secret for HmacPubSubHub in appsettings.json");
 
     var apiUrl =
         $"https://pubsubhubbub.appspot.com/subscription-details?hub.callback=https://promo-codes.duckdns.org/api/youtube-feed&hub.topic=https://www.youtube.com/xml/feeds/videos.xml?channel_id=UCUyeluBRhGPCW4rPe_UvBZQ&hub.secret={hmacSecret}";
