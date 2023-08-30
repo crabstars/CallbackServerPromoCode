@@ -1,3 +1,5 @@
+using ILogger = Serilog.ILogger;
+
 namespace CallbackServerPromoCodes.Manager;
 
 public static class YoutubeRequestManager
@@ -30,13 +32,13 @@ public static class YoutubeRequestManager
             if (response.IsSuccessStatusCode)
                 return await response.Content.ReadAsStringAsync(cancellationToken);
 
-            logger.LogError(
+            logger.Error(
                 "Error status code occured while communicating with youtube api: {statusCode}", response.StatusCode);
             return null;
         }
         catch (HttpRequestException ex)
         {
-            logger.LogError("Exception occured while communicating with youtube api: {message}", ex.Message);
+            logger.Error("Exception occured while communicating with youtube api: {message}", ex.Message);
             return null;
         }
     }

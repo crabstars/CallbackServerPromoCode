@@ -10,11 +10,10 @@ public class Promotion
     {
     }
 
-    public Promotion(string? code, string? link, string company, Video video)
+    public Promotion(string? code, string? link, string company)
     {
         Code = code;
         Link = link;
-        Video = video;
         Company = company;
     }
 

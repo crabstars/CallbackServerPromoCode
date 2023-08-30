@@ -13,4 +13,6 @@ public static class AppSettings
     public const string YoutubeApiKey = "Secrets:YoutubeApiKey";
 
     public const string OpenAiApiKey = "Secrets:OpenAIApiKey";
+
+    public const string ProcessVideoDelay = "WorkerDelay:ProcessVideo";
 }

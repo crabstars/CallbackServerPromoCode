@@ -9,11 +9,12 @@ public class Video
     {
     }
 
-    public Video(string videoId, string link, Channel channel)
+    public Video(string videoId, string link, string title, Channel channel)
     {
         Id = videoId;
         Channel = channel;
         Link = link;
+        Title = title;
         Processed = false;
         Promotions = new List<Promotion>();
     }
