@@ -1,7 +1,11 @@
 using CallbackServerPromoCodes;
 using CallbackServerPromoCodes.Authentication;
 using CallbackServerPromoCodes.Constants;
+using CallbackServerPromoCodes.DTOs;
+using CallbackServerPromoCodes.Enums;
 using CallbackServerPromoCodes.Manager;
+using CallbackServerPromoCodes.Worker;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Serilog;
 using ConfigurationProvider = CallbackServerPromoCodes.Provider.ConfigurationProvider;
@@ -10,59 +14,70 @@ var builder = WebApplication.CreateBuilder(args);
 var configuration = ConfigurationProvider.GetConfiguration();
 
 var loggingPath = configuration[AppSettings.Serilog] ?? "logs/promo-code.txt";
+builder.Logging.ClearProviders();
 var serilogLogger = new LoggerConfiguration()
     .WriteTo.Console()
     .WriteTo.File(loggingPath)
-    .MinimumLevel.Information()
+    .MinimumLevel.Debug()
     .CreateLogger();
-builder.Logging.ClearProviders();
 builder.Logging.AddSerilog(serilogLogger);
 
+
 builder.Services.AddDbContext<AppDbContext>();
+builder.Services.AddHttpClient();
+
+// Add background worker
+builder.Services.AddHostedService<ProcessVideo>();
+
 var app = builder.Build();
 using var scope = app.Services.CreateScope();
 var dbContext = scope.ServiceProvider.GetRequiredService<AppDbContext>();
 dbContext.Database.Migrate();
 
-app.MapPost("api/youtube-feed",
-    async (AppDbContext context, ILoggerFactory loggerFactory, HttpContext c) =>
+app.MapPost(URLPath.Callback,
+    async ([FromServices] AppDbContext appDbContext, [FromServices] ILoggerFactory loggerFactory,
+        HttpContext httpContext) =>
     {
-        var logger = loggerFactory.CreateLogger("controller");
-        using var reader = new StreamReader(c.Request.Body);
-        var xmlContent = await reader.ReadToEndAsync();
+        var logger = loggerFactory.CreateLogger("post-youtube-feed");
+        using var reader = new StreamReader(httpContext.Request.Body);
+        var requestBody = await reader.ReadToEndAsync();
 
-        c.Request.Headers.TryGetValue(Auth.PubSubHubSig, out var signature);
+        httpContext.Request.Headers.TryGetValue(Auth.PubSubHubSig, out var signature);
         // return 2xx to ack receipt even if wrong sig (point 8) http://pubsubhubbub.github.io/PubSubHubbub/pubsubhubbub-core-0.4.html
-        if (!Hmac.Verify(logger, xmlContent, signature))
+        if (!Hmac.Verify(logger, requestBody, signature))
+        {
+            logger.LogError("Got request with wrong signature. Body: {body}", requestBody);
             return Results.Ok("Wrong signature");
+        }
 
         try
         {
-            var result = XmlManager.ToYoutubeFeed(xmlContent);
-            if (result is null)
+            var xmlContent = XmlManager.ToYoutubeFeed(requestBody);
+            if (xmlContent is null)
             {
-                logger.LogError("deserialized result is null, XML-Data: {xmlContent}", xmlContent);
-                return Results.BadRequest("Could not deserialize xml");
+                logger.LogError("deserialized result is null, XML-Data: {xmlContent}", requestBody);
+                return Results.Ok("Could not deserialize xml");
             }
 
-            var channel = await context.Channels.FirstOrDefaultAsync(c => c.Id == result.Entry.ChannelId);
-            if (channel is null)
+            var channel = await appDbContext.Channels.FirstOrDefaultAsync(c => c.Id == xmlContent.Entry.ChannelId);
+            if (channel is null || !channel.Subscribed || !channel.Activated)
             {
-                logger.LogError("Channel was not added {channelId}", result.Entry.ChannelId);
-                return Results.BadRequest("Could not deserialize xml");
+                logger.LogError("Channel was not added {channelId} or is not active", xmlContent.Entry.ChannelId);
+                return Results.Ok("Missing Channel");
             }
 
-            var video = await DbManager.AddVideo(result, channel, context);
-            return Results.Ok(video);
+            var video = await DbManager.AddVideo(xmlContent, channel, appDbContext);
+            logger.LogDebug("VideoId: {id}, Link: {link}", video.Id, video.Link);
         }
         catch (Exception e)
         {
-            logger.LogError("Exception: {e}, XML-Data: {xmlContent}", e, xmlContent);
-            return Results.BadRequest("Invalid XML data.");
+            logger.LogError("Exception: {e}, XML-Data: {xmlContent}", e, requestBody);
         }
+
+        return Results.Ok();
     }).Accepts<HttpRequest>("application/xml");
 
-app.MapGet("api/youtube-feed", (HttpContext c) =>
+app.MapGet(URLPath.Callback, (HttpContext c) =>
 {
     if (!c.Request.Query.TryGetValue(Auth.HubChallenge, out var hubChallengeValue))
     {
@@ -74,16 +89,62 @@ app.MapGet("api/youtube-feed", (HttpContext c) =>
     c.Response.WriteAsync(hubChallenge);
 });
 
-
-app.MapPost("api/youtube-feed/creator", () =>
+// page should start at 1
+app.MapGet("api/promotions", async ([FromServices] AppDbContext context, [FromQuery] string productName,
+        [FromQuery] int page, [FromQuery] int count)
+    =>
 {
-    // convert usernmae to id https://www.googleapis.com/youtube/v3/channels?part=snippet&forUsername={USERNAME}&key={YOUR_API_KEY}
+    if (string.IsNullOrWhiteSpace(productName))
+        return new List<SearchPromotionDto>();
+    var promotions = context.Promotions.Include(p => p.Video).AsQueryable();
+    return await promotions.Where(p => EF.Functions.Like(p.Product, productName + "%"))
+        .Skip((page - 1) * count).Take(count).Select(p => new SearchPromotionDto(p.Product, p.Code,
+            p.Link, p.Video.Link, p.Video.Channel.Name)).ToListAsync();
+}).CacheOutput(x => x.SetVaryByQuery("productName", "page", "count"));
+
+app.MapPost("api/youtube-feed/creator", async ([FromServices] AppDbContext context,
+    [FromServices] IHttpClientFactory httpClientFactory, [FromServices] ILoggerFactory loggerFactory,
+    [FromQuery] string name, CancellationToken cancellationToken) =>
+{
+    var logger = loggerFactory.CreateLogger("api/youtube-feed/creator");
+    var httpClient = httpClientFactory.CreateClient();
+
+    var responseBody =
+        await YoutubeRequestManager.GetResponseForYoutubeChannelsCall(name, httpClient, logger,
+            cancellationToken);
+    if (responseBody is null)
+        return Results.BadRequest("Error occured while calling youtube api, see logs");
+
+    var channel = ParseManager.GetChannel(responseBody, logger);
+    if (channel is null)
+        return Results.BadRequest("No channel found");
+
+    logger.LogDebug("ChannelId: {id}, Name: {link}", channel.Id, channel.Name);
+    if (await DbManager.AddChannel(context, channel, cancellationToken) is null)
+        return Results.Ok("Channel already inserted");
+
+    return Results.Ok("Channel inserted");
 }).AddEndpointFilter<ApiKeyEndpointFilter>();
 
-app.MapDelete("api/youtube-feed/creator", () => { }).AddEndpointFilter<ApiKeyEndpointFilter>();
+app.MapGet("api/pubSubHubSubscription", async (HttpContext context, [FromServices] IHttpClientFactory httpClientFactory,
+    [FromQuery] string channelId) =>
+{
+    var httpClient = httpClientFactory.CreateClient();
+    await PubSubHubbubRequestManager.GetSubscriptionDetails(httpClient, context, channelId);
+}).AddEndpointFilter<ApiKeyEndpointFilter>();
 
+app.MapPost("api/pubSubHubSubscription", async ([FromServices] IHttpClientFactory httpClientFactory,
+    [FromServices] ILoggerFactory loggerFactory, [FromQuery] string channelId, [FromQuery] HubMode hubMode) =>
+{
+    var httpClient = httpClientFactory.CreateClient();
+    var logger = loggerFactory.CreateLogger("post api/pubSubHubSubscription");
+    await PubSubHubbubRequestManager.ChangeSubscription(httpClient, logger, hubMode, channelId);
+}).AddEndpointFilter<ApiKeyEndpointFilter>();
 
-app.MapGet("api/videos", (AppDbContext context)
-    => Results.Ok(context.Videos.ToList())).AddEndpointFilter<ApiKeyEndpointFilter>();
+app.MapDelete("api/youtube-feed/channel", async ([FromServices] AppDbContext context, [FromQuery] string channelId,
+        CancellationToken cancellationToken) =>
+    await DbManager.DeleteChannel(context, channelId, cancellationToken) is null
+        ? Results.BadRequest("no channel found")
+        : Results.Ok("channel deleted")).AddEndpointFilter<ApiKeyEndpointFilter>();
 
 app.Run();

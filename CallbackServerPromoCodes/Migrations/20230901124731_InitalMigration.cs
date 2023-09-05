@@ -5,7 +5,7 @@
 namespace CallbackServerPromoCodes.Migrations
 {
     /// <inheritdoc />
-    public partial class InitialCreate : Migration
+    public partial class InitalMigration : Migration
     {
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
@@ -16,7 +16,8 @@ namespace CallbackServerPromoCodes.Migrations
                 {
                     Id = table.Column<string>(type: "TEXT", nullable: false),
                     Name = table.Column<string>(type: "TEXT", nullable: false),
-                    Subscribed = table.Column<bool>(type: "INTEGER", nullable: false)
+                    Subscribed = table.Column<bool>(type: "INTEGER", nullable: false),
+                    Activated = table.Column<bool>(type: "INTEGER", nullable: false)
                 },
                 constraints: table =>
                 {
@@ -53,7 +54,7 @@ namespace CallbackServerPromoCodes.Migrations
                         .Annotation("Sqlite:Autoincrement", true),
                     Code = table.Column<string>(type: "TEXT", nullable: true),
                     Link = table.Column<string>(type: "TEXT", nullable: true),
-                    Company = table.Column<string>(type: "TEXT", nullable: false),
+                    Product = table.Column<string>(type: "TEXT", nullable: false),
                     VideoId = table.Column<string>(type: "TEXT", nullable: true)
                 },
                 constraints: table =>
@@ -77,14 +78,14 @@ namespace CallbackServerPromoCodes.Migrations
                 column: "Name");
 
             migrationBuilder.CreateIndex(
-                name: "IX_Promotions_Company",
-                table: "Promotions",
-                column: "Company");
-
-            migrationBuilder.CreateIndex(
                 name: "IX_Promotions_Id",
                 table: "Promotions",
                 column: "Id");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_Promotions_Product",
+                table: "Promotions",
+                column: "Product");
 
             migrationBuilder.CreateIndex(
                 name: "IX_Promotions_VideoId",
