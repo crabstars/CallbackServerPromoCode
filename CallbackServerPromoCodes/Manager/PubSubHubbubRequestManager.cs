@@ -13,12 +13,14 @@ public static class PubSubHubbubRequestManager
 
     public static async Task GetSubscriptionDetails(HttpClient httpClient, HttpContext context, string channelId)
     {
-        var hmacSecret = ConfigurationProvider.GetConfiguration().GetSection(AppSettings.HmacSecret).Value ??
+        var configProvider = ConfigurationProvider.GetConfiguration();
+        var hmacSecret = configProvider.GetSection(AppSettings.HmacSecret).Value ??
                          throw new ArgumentException("Missing secret for HmacPubSubHub in appsettings.json");
-
+        var callBackUrl = configProvider.GetSection(AppSettings.CallbackBaseUrl).Value + URLPath.Callback ??
+                          throw new ArgumentException("Missing value for CallbackApiKey in appsettings.json");
         var apiUrl =
             $"{PubSubBase}/subscription-details" +
-            $"?hub.callback={Auth.CallBackURL}" +
+            $"?hub.callback={callBackUrl}" +
             $"&hub.topic=https://www.youtube.com/xml/feeds/videos.xml?channel_id={channelId}" +
             $"&hub.secret={hmacSecret}";
         try
@@ -45,13 +47,15 @@ public static class PubSubHubbubRequestManager
     public static async Task ChangeSubscription(HttpClient httpClient, ILogger logger, HubMode hubMode,
         string channelId)
     {
-        var hmacSecret = ConfigurationProvider.GetConfiguration().GetSection(AppSettings.HmacSecret).Value ??
+        var configProvider = ConfigurationProvider.GetConfiguration();
+        var hmacSecret = configProvider.GetSection(AppSettings.HmacSecret).Value ??
                          throw new ArgumentException("Missing secret for HmacPubSubHub in appsettings.json");
-
-        var apiUrl = $"{PubSubBase}/subscribe";
+        var callBackUrl = configProvider.GetSection(AppSettings.CallbackBaseUrl).Value + URLPath.Callback ??
+                          throw new ArgumentException("Missing value for CallbackApiKey in appsettings.json");
+        const string apiUrl = $"{PubSubBase}/subscribe";
         var content = new PubSubHubSubscribePayload
         {
-            Callback = Auth.CallBackURL,
+            Callback = callBackUrl,
             Mode = hubMode.ToString(),
             Secret = hmacSecret,
             Verify = "sync",
