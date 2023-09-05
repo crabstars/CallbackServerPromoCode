@@ -17,4 +17,6 @@ public static class AppSettings
     public const string ProcessVideoDelay = "WorkerDelay:ProcessVideo";
 
     public const string CallbackBaseUrl = "Hub:CallbackBase";
+
+    public const string TopicYoutube = "Hub:TopicYoutube";
 }

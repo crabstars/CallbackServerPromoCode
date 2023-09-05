@@ -1,6 +1,3 @@
-using System.Text;
-using System.Text.Json;
-using CallbackServerPromoCodes.ApiModels;
 using CallbackServerPromoCodes.Constants;
 using CallbackServerPromoCodes.Enums;
 using ConfigurationProvider = CallbackServerPromoCodes.Provider.ConfigurationProvider;
@@ -54,24 +51,29 @@ public static class PubSubHubbubRequestManager
         var callBackUrl = (configProvider.GetSection(AppSettings.CallbackBaseUrl).Value ??
                            throw new ArgumentException("Missing value for CallbackBaseUrl in appsettings.json"))
                           + URLPath.Callback;
+        var topicUrl = configProvider.GetSection(AppSettings.TopicYoutube).Value ??
+                       throw new ArgumentException("Missing value for TopicUrl Hub in appsettings.json");
         const string apiUrl = $"{PubSubBase}/subscribe";
-        var content = new PubSubHubSubscribePayload
+
+        var content = new Dictionary<string, string>
         {
-            Callback = callBackUrl,
-            Mode = hubMode.ToString(),
-            Secret = hmacSecret,
-            Verify = "sync",
-            Topic = $"https://www.youtube.com/xml/feeds/videos.xml?channel_id={channelId}",
-            LeaseNumbers = "",
-            VerifyToken = ""
+            { "hub.callback", callBackUrl },
+            { "hub.mode", hubMode.ToString() },
+            { "hub.secret", hmacSecret },
+            { "hub.verify", "sync" },
+            { "hub.topic", topicUrl + channelId },
+            { "hub.lease_numbers", "" },
+            { "hub.verify_token", "" }
         };
 
-        var payload = new StringContent(JsonSerializer.Serialize(content), Encoding.UTF8, "application/json");
+        var payload = new FormUrlEncodedContent(content);
         var response = await httpClient.PostAsync(apiUrl, payload);
-        Console.WriteLine(payload.ToString());
         if (response.IsSuccessStatusCode)
+        {
             logger.LogInformation("Subscription for channelId: {id} was changed to: {subType}",
                 channelId, hubMode.ToString());
+            return;
+        }
 
         logger.LogError("Subscription type could not be changed. Response: {}", response.Content.ToString());
     }
