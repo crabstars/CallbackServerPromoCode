@@ -2,9 +2,9 @@ using System.Text.Json.Serialization;
 
 namespace CallbackServerPromoCodes.ApiModels;
 
-public class ChatGptPayload
+public record ChatGptPayload
 {
-    [JsonPropertyName("model")] public string Model { get; set; }
+    [JsonPropertyName("model")] public string Model { get; init; }
 
-    [JsonPropertyName("messages")] public List<ChatGptMessage> Messages { get; set; }
+    [JsonPropertyName("messages")] public List<ChatGptMessage> Messages { get; init; }
 }

@@ -1,4 +1,5 @@
 using System.ComponentModel;
+using CallbackServerPromoCodes.DbModels;
 using Microsoft.EntityFrameworkCore;
 
 namespace CallbackServerPromoCodes.Models;

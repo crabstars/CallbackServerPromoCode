@@ -1,16 +1,15 @@
 using System.Text;
 using System.Text.Json;
 using CallbackServerPromoCodes.ApiModels;
-using ILogger = Serilog.ILogger;
 
 namespace CallbackServerPromoCodes.Manager;
 
-public static class OpenAiRequestManager
+public static class OpenAIRequestManager
 {
     private const string OpenAiApiBase = "https://api.openai.com/v1/";
 
     public static async Task<List<ExtractedGptPromo>> GetPromotions(HttpClient httpClient, ILogger logger,
-        string apiKey, string description)
+        string apiKey, string description, CancellationToken cancellationToken)
     {
         const string url = OpenAiApiBase + "chat/completions";
         var request = new HttpRequestMessage(HttpMethod.Post, url);
@@ -30,21 +29,18 @@ public static class OpenAiRequestManager
                 new() { Role = "user", Content = description }
             }
         };
-
-        var content = new StringContent(JsonSerializer.Serialize(payload), Encoding.UTF8, "application/json");
-        request.Content = content;
-
-        var response = await httpClient.SendAsync(request);
+        request.Content = new StringContent(JsonSerializer.Serialize(payload), Encoding.UTF8, "application/json");
+        var response = await httpClient.SendAsync(request, cancellationToken);
 
         // Check the response status code
         if (!response.IsSuccessStatusCode) return null;
-        var responseBody = await response.Content.ReadAsStringAsync();
+        var responseBody = await response.Content.ReadAsStringAsync(cancellationToken);
         var chatGptResponse = JsonSerializer.Deserialize<ChatGptResponse>(responseBody);
         try
         {
             var promo = JsonSerializer.Deserialize<List<ExtractedGptPromo>>(chatGptResponse?.Choices[0].Message
                 .Content);
-            logger.Information("Extracted list of promotions");
+            logger.LogInformation("Extracted list of promotions");
             return promo ?? new List<ExtractedGptPromo>();
         }
         catch (Exception)
@@ -52,12 +48,13 @@ public static class OpenAiRequestManager
             try
             {
                 var promo = JsonSerializer.Deserialize<ExtractedGptPromo>(chatGptResponse?.Choices[0].Message.Content);
-                logger.Information("Extracted one promotion");
+                logger.LogInformation("Extracted one promotion");
                 return promo is not null ? new List<ExtractedGptPromo> { promo } : new List<ExtractedGptPromo>();
             }
             catch (Exception)
             {
-                logger.Warning("Could not extract any promotions from description: {desc}\n\nChatGpt Response: {resp}",
+                logger.LogWarning(
+                    "Could not extract any promotions from description: {desc}\n\nChatGpt Response: {resp}",
                     description, chatGptResponse);
                 return new List<ExtractedGptPromo>();
             }

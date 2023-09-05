@@ -2,7 +2,6 @@ using System.Security.Cryptography;
 using System.Text;
 using CallbackServerPromoCodes.Constants;
 using ConfigurationProvider = CallbackServerPromoCodes.Provider.ConfigurationProvider;
-using ILogger = Serilog.ILogger;
 
 namespace CallbackServerPromoCodes.Authentication;
 
@@ -30,13 +29,13 @@ public static class Hmac
     {
         if (string.IsNullOrWhiteSpace(payload))
         {
-            logger.Error("payload is empty");
+            logger.LogError("payload is empty");
             return false;
         }
 
         if (string.IsNullOrWhiteSpace(signatureWithPrefix))
         {
-            logger.Error("signature is empty");
+            logger.LogError("signature is empty");
             return false;
         }
 

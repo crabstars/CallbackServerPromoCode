@@ -1,4 +1,5 @@
-using ILogger = Serilog.ILogger;
+using CallbackServerPromoCodes.Constants;
+using ConfigurationProvider = CallbackServerPromoCodes.Provider.ConfigurationProvider;
 
 namespace CallbackServerPromoCodes.Manager;
 
@@ -6,10 +7,13 @@ public static class YoutubeRequestManager
 {
     private const string YoutubeApiBase = "https://www.googleapis.com/youtube/v3/";
 
-    public static async Task<string?> GetResponseForYoutubeChannelsCall(string apiKey, string name,
+    public static async Task<string?> GetResponseForYoutubeChannelsCall(string name,
         HttpClient httpClient, ILogger logger,
         CancellationToken cancellationToken)
     {
+        var apiKey = ConfigurationProvider.GetConfiguration().GetSection(AppSettings.YoutubeApiKey).Value ??
+                     throw new ArgumentException("Missing YoutubeApiKey in appsettings.json");
+
         var apiUrl = $"{YoutubeApiBase}search?key={apiKey}&q={name}&type=channel&part=snippet";
         return await YoutubeGetCall(httpClient, logger, cancellationToken, apiUrl);
     }
@@ -32,13 +36,13 @@ public static class YoutubeRequestManager
             if (response.IsSuccessStatusCode)
                 return await response.Content.ReadAsStringAsync(cancellationToken);
 
-            logger.Error(
+            logger.LogError(
                 "Error status code occured while communicating with youtube api: {statusCode}", response.StatusCode);
             return null;
         }
         catch (HttpRequestException ex)
         {
-            logger.Error("Exception occured while communicating with youtube api: {message}", ex.Message);
+            logger.LogError("Exception occured while communicating with youtube api: {message}", ex.Message);
             return null;
         }
     }

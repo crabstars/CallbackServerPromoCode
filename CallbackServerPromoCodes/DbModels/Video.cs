@@ -1,6 +1,7 @@
+using CallbackServerPromoCodes.Models;
 using Microsoft.EntityFrameworkCore;
 
-namespace CallbackServerPromoCodes.Models;
+namespace CallbackServerPromoCodes.DbModels;
 
 [Index(nameof(Id))]
 public class Video

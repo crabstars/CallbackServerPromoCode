@@ -1,3 +1,4 @@
+using CallbackServerPromoCodes.DbModels;
 using CallbackServerPromoCodes.Models;
 using CallbackServerPromoCodes.XML.YouTubeFeedSerialization;
 using Microsoft.EntityFrameworkCore;

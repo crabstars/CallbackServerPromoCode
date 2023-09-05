@@ -10,8 +10,8 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace CallbackServerPromoCodes.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    [Migration("20230823133825_InitialCreate")]
-    partial class InitialCreate
+    [Migration("20230901124731_InitalMigration")]
+    partial class InitalMigration
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
@@ -19,10 +19,43 @@ namespace CallbackServerPromoCodes.Migrations
 #pragma warning disable 612, 618
             modelBuilder.HasAnnotation("ProductVersion", "7.0.10");
 
+            modelBuilder.Entity("CallbackServerPromoCodes.DbModels.Promotion", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Code")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Link")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Product")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("VideoId")
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Id");
+
+                    b.HasIndex("Product");
+
+                    b.HasIndex("VideoId");
+
+                    b.ToTable("Promotions");
+                });
+
             modelBuilder.Entity("CallbackServerPromoCodes.Models.Channel", b =>
                 {
                     b.Property<string>("Id")
                         .HasColumnType("TEXT");
+
+                    b.Property<bool>("Activated")
+                        .HasColumnType("INTEGER");
 
                     b.Property<string>("Name")
                         .IsRequired()
@@ -38,36 +71,6 @@ namespace CallbackServerPromoCodes.Migrations
                     b.HasIndex("Name");
 
                     b.ToTable("Channels");
-                });
-
-            modelBuilder.Entity("CallbackServerPromoCodes.Models.Promotion", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("INTEGER");
-
-                    b.Property<string>("Code")
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("Company")
-                        .IsRequired()
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("Link")
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("VideoId")
-                        .HasColumnType("TEXT");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("Company");
-
-                    b.HasIndex("Id");
-
-                    b.HasIndex("VideoId");
-
-                    b.ToTable("Promotions");
                 });
 
             modelBuilder.Entity("CallbackServerPromoCodes.Models.Video", b =>
@@ -101,7 +104,7 @@ namespace CallbackServerPromoCodes.Migrations
                     b.ToTable("Videos");
                 });
 
-            modelBuilder.Entity("CallbackServerPromoCodes.Models.Promotion", b =>
+            modelBuilder.Entity("CallbackServerPromoCodes.DbModels.Promotion", b =>
                 {
                     b.HasOne("CallbackServerPromoCodes.Models.Video", "Video")
                         .WithMany("Promotions")

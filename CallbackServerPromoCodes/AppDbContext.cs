@@ -1,4 +1,5 @@
 using CallbackServerPromoCodes.Constants;
+using CallbackServerPromoCodes.DbModels;
 using CallbackServerPromoCodes.Models;
 using Microsoft.EntityFrameworkCore;
 using ConfigurationProvider = CallbackServerPromoCodes.Provider.ConfigurationProvider;

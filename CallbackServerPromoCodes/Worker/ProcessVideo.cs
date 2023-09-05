@@ -1,9 +1,7 @@
 using CallbackServerPromoCodes.Constants;
+using CallbackServerPromoCodes.DbModels;
 using CallbackServerPromoCodes.Manager;
-using CallbackServerPromoCodes.Models;
 using Microsoft.EntityFrameworkCore;
-using Serilog;
-using ILogger = Serilog.ILogger;
 
 namespace CallbackServerPromoCodes.Worker;
 
@@ -15,10 +13,10 @@ public class ProcessVideo : BackgroundService
     private readonly int _workerDelay;
     private readonly string _ytApiKey;
 
-    public ProcessVideo(IServiceProvider serviceProvider, IConfiguration configuration)
+    public ProcessVideo(IServiceProvider serviceProvider, IConfiguration configuration, ILoggerFactory loggerFactory)
     {
         _serviceProvider = serviceProvider;
-        _logger = Log.Logger;
+        _logger = loggerFactory.CreateLogger("ProcessVideo");
         _ytApiKey = configuration.GetSection(AppSettings.YoutubeApiKey).Value ??
                     throw new ArgumentException($"Missing {AppSettings.YoutubeApiKey} in appsettings.json");
         _openAiApiKey = configuration.GetSection(AppSettings.OpenAiApiKey).Value ??
@@ -36,7 +34,7 @@ public class ProcessVideo : BackgroundService
         var videos = await dbContext.Videos.Where(v => !v.Processed).ToListAsync(cancellationToken);
 
         if (videos.Any())
-            _logger.Information("Processing {count} videos", videos.Count);
+            _logger.LogInformation("Processing {count} videos", videos.Count);
 
 
         var httpClient = httpClientFactory.CreateClient();
@@ -59,7 +57,8 @@ public class ProcessVideo : BackgroundService
         CancellationToken cancellationToken)
     {
         var promos =
-            await OpenAiRequestManager.GetPromotions(httpClient, logger, _openAiApiKey, video.Description ?? "");
+            await OpenAIRequestManager.GetPromotions(httpClient, logger, _openAiApiKey, video.Description ?? "",
+                cancellationToken);
         video.Promotions = promos.Select(p => new Promotion(p.Code, p.Link, p.Company)).ToList();
     }
 
@@ -71,7 +70,7 @@ public class ProcessVideo : BackgroundService
                 cancellationToken);
         if (string.IsNullOrEmpty(response))
         {
-            logger.Warning("Setting video description to empty because youtube response was empty. VideoId {}",
+            logger.LogWarning("Setting video description to empty because youtube response was empty. VideoId {}",
                 video.Id);
             return;
         }
@@ -79,7 +78,7 @@ public class ProcessVideo : BackgroundService
         var description = ParseManager.GetVideoDescription(response, logger);
         if (string.IsNullOrEmpty(response))
         {
-            logger.Warning("Setting video description to empty because parsed description was empty. VideoId {}",
+            logger.LogWarning("Setting video description to empty because parsed description was empty. VideoId {}",
                 video.Id);
             return;
         }

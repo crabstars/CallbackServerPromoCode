@@ -1,6 +1,5 @@
 using CallbackServerPromoCodes.Models;
 using Newtonsoft.Json.Linq;
-using ILogger = Serilog.ILogger;
 
 namespace CallbackServerPromoCodes.Manager;
 
@@ -13,7 +12,7 @@ public static class ParseManager
         var channelId = itemsArray?[0]["id"]?["channelId"];
         var channelName = itemsArray?[0]["snippet"]?["channelTitle"];
 
-        logger.Debug("Response Body: {body}", responseBody);
+        logger.LogDebug("Response Body: {body}", responseBody);
         return channelId == null || channelName == null
             ? null
             : new Channel(channelId.ToString(), channelName.ToString());
@@ -23,7 +22,7 @@ public static class ParseManager
     {
         var itemsArray = ParseItems(responseBody, logger);
         var description = itemsArray?[0]["snippet"]?["description"];
-        logger.Debug("Response Body: {body}", responseBody);
+        logger.LogDebug("Response Body: {body}", responseBody);
         return description?.ToString();
     }
 
@@ -34,7 +33,7 @@ public static class ParseManager
 
         if (itemsArray != null && itemsArray.Count != 0) return itemsArray;
 
-        logger.Error("Parsed object is empty or null");
+        logger.LogError("Parsed object is empty or null");
         return null;
     }
 }

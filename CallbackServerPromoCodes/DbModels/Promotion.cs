@@ -1,20 +1,21 @@
 using Microsoft.EntityFrameworkCore;
 
-namespace CallbackServerPromoCodes.Models;
+namespace CallbackServerPromoCodes.DbModels;
 
 [Index(nameof(Id))]
-[Index(nameof(Company))]
+[Index(nameof(Product))]
 public class Promotion
 {
     public Promotion()
     {
     }
 
-    public Promotion(string? code, string? link, string company)
+    public Promotion(string? code, string? link, string product)
     {
         Code = code;
         Link = link;
-        Company = company;
+        Product = product;
+        Added = DateTime.Now;
     }
 
     public int Id { get; set; }
@@ -23,7 +24,9 @@ public class Promotion
 
     public string? Link { get; set; }
 
-    public string Company { get; set; }
+    public string Product { get; set; }
 
     public Video Video { get; set; }
+
+    public DateTime Added { get; set; }
 }
