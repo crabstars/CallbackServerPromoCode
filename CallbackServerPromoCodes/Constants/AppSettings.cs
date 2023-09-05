@@ -16,5 +16,5 @@ public static class AppSettings
 
     public const string ProcessVideoDelay = "WorkerDelay:ProcessVideo";
 
-    public const string CallbackBaseUrl = "Hub:Callback";
+    public const string CallbackBaseUrl = "Hub:CallbackBase";
 }

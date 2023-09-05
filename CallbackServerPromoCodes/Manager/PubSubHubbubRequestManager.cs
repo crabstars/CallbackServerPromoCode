@@ -16,8 +16,9 @@ public static class PubSubHubbubRequestManager
         var configProvider = ConfigurationProvider.GetConfiguration();
         var hmacSecret = configProvider.GetSection(AppSettings.HmacSecret).Value ??
                          throw new ArgumentException("Missing secret for HmacPubSubHub in appsettings.json");
-        var callBackUrl = configProvider.GetSection(AppSettings.CallbackBaseUrl).Value + URLPath.Callback ??
-                          throw new ArgumentException("Missing value for CallbackApiKey in appsettings.json");
+        var callBackUrl = (configProvider.GetSection(AppSettings.CallbackBaseUrl).Value ??
+                           throw new ArgumentException("Missing value for CallbackBaseUrl in appsettings.json"))
+                          + URLPath.Callback;
         var apiUrl =
             $"{PubSubBase}/subscription-details" +
             $"?hub.callback={callBackUrl}" +
@@ -50,8 +51,9 @@ public static class PubSubHubbubRequestManager
         var configProvider = ConfigurationProvider.GetConfiguration();
         var hmacSecret = configProvider.GetSection(AppSettings.HmacSecret).Value ??
                          throw new ArgumentException("Missing secret for HmacPubSubHub in appsettings.json");
-        var callBackUrl = configProvider.GetSection(AppSettings.CallbackBaseUrl).Value + URLPath.Callback ??
-                          throw new ArgumentException("Missing value for CallbackApiKey in appsettings.json");
+        var callBackUrl = (configProvider.GetSection(AppSettings.CallbackBaseUrl).Value ??
+                           throw new ArgumentException("Missing value for CallbackBaseUrl in appsettings.json"))
+                          + URLPath.Callback;
         const string apiUrl = $"{PubSubBase}/subscribe";
         var content = new PubSubHubSubscribePayload
         {
