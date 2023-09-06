@@ -118,13 +118,13 @@ app.MapGet(URLPath.Callback, (HttpContext c) =>
 
 // page should start at 1
 app.MapGet("api/promotions", async ([FromServices] AppDbContext context, [FromQuery] string productName,
-        [FromQuery] int page, [FromQuery] int count)
-    =>
+    [FromQuery] int page, [FromQuery] int count) =>
 {
     if (string.IsNullOrWhiteSpace(productName))
         return new List<SearchPromotionDto>();
     var promotions = context.Promotions.Include(p => p.Video).AsQueryable();
     return await promotions.Where(p => EF.Functions.Like(p.Product, productName + "%"))
+        .OrderBy(p => p.Added)
         .Skip((page - 1) * count).Take(count).Select(p => new SearchPromotionDto(p.Product, p.Code,
             p.Link, p.Video.Link, p.Video.Channel.Name)).ToListAsync();
 }).CacheOutput(x => x.SetVaryByQuery("productName", "page", "count"));
@@ -151,6 +151,15 @@ app.MapPost("api/youtube-feed/creator", async ([FromServices] AppDbContext conte
         return Results.Ok("Channel already inserted");
 
     return Results.Ok("Channel inserted");
+}).AddEndpointFilter<ApiKeyEndpointFilter>();
+
+app.MapGet("api/youtube-feed/creator", async ([FromServices] AppDbContext context,
+    [FromQuery] string name, [FromQuery] int page, [FromQuery] int count, CancellationToken cancellationToken) =>
+{
+    return await context.Channels.Where(c => EF.Functions.Like(c.Name, name + "%"))
+        .OrderBy(c => c.Name)
+        .Skip((page - 1) * count).Take(count).Select(c => new ChannelDto(c.Id, c.Name, c.Subscribed, c.Activated))
+        .ToListAsync(cancellationToken);
 }).AddEndpointFilter<ApiKeyEndpointFilter>();
 
 app.MapGet("api/pubSubHubSubscription", async (HttpContext context, [FromServices] IHttpClientFactory httpClientFactory,
