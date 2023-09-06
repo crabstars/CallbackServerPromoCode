@@ -25,11 +25,21 @@ builder.Logging.AddSerilog(serilogLogger);
 
 builder.Services.AddDbContext<AppDbContext>();
 builder.Services.AddHttpClient();
+builder.Services.AddOutputCache();
+builder.Services.AddCors();
 
 // Add background worker
 builder.Services.AddHostedService<ProcessVideo>();
+builder.Services.AddHostedService<SubscribeViaPubSubHub>();
 
 var app = builder.Build();
+app.UseCors(b => b
+    .AllowAnyOrigin()
+    .AllowAnyMethod()
+    .AllowAnyHeader()
+);
+app.UseOutputCache();
+
 using var scope = app.Services.CreateScope();
 var dbContext = scope.ServiceProvider.GetRequiredService<AppDbContext>();
 dbContext.Database.Migrate();
@@ -79,13 +89,30 @@ app.MapPost(URLPath.Callback,
 
 app.MapGet(URLPath.Callback, (HttpContext c) =>
 {
+    if (!c.Request.Query.TryGetValue(Auth.HubVerifyToken, out var hubVerifyToken))
+    {
+        c.Response.StatusCode = 404;
+        c.Response.WriteAsync("missing " + Auth.HubVerifyToken);
+        return;
+    }
+
+    if (hubVerifyToken != configuration.GetSection(AppSettings.VerifyToken).Value)
+    {
+        c.Response.StatusCode = 404;
+        c.Response.WriteAsync("wrong" + Auth.HubVerifyToken);
+        return;
+    }
+
     if (!c.Request.Query.TryGetValue(Auth.HubChallenge, out var hubChallengeValue))
     {
         c.Response.StatusCode = 404;
         c.Response.WriteAsync("missing " + Auth.HubChallenge);
+        return;
     }
 
     var hubChallenge = hubChallengeValue.ToString();
+
+    // Results.Ok would return an apllication/json which doesnt work for the pubsubhub
     c.Response.WriteAsync(hubChallenge);
 });
 
@@ -138,7 +165,9 @@ app.MapPost("api/pubSubHubSubscription", async ([FromServices] IHttpClientFactor
 {
     var httpClient = httpClientFactory.CreateClient();
     var logger = loggerFactory.CreateLogger("post api/pubSubHubSubscription");
-    await PubSubHubbubRequestManager.ChangeSubscription(httpClient, logger, hubMode, channelId);
+    if (await PubSubHubbubRequestManager.ChangeSubscription(httpClient, logger, hubMode, channelId))
+        return Results.Ok();
+    return Results.BadRequest();
 }).AddEndpointFilter<ApiKeyEndpointFilter>();
 
 app.MapDelete("api/youtube-feed/channel", async ([FromServices] AppDbContext context, [FromQuery] string channelId,

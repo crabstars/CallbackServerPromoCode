@@ -7,4 +7,6 @@ public static class Auth
     public const string ApiKeyHeader = "x-api-key";
 
     public const string HubChallenge = "hub.challenge";
+
+    public const string HubVerifyToken = "hub.verify_token";
 }

@@ -34,20 +34,20 @@ public class ProcessVideo : BackgroundService
         var videos = await dbContext.Videos.Where(v => !v.Processed).ToListAsync(cancellationToken);
 
         if (videos.Any())
-            _logger.LogInformation("Processing {count} videos", videos.Count);
-
-
-        var httpClient = httpClientFactory.CreateClient();
-        foreach (var video in videos)
         {
-            if (video.Description is null)
+            _logger.LogInformation("Processing {count} videos", videos.Count);
+            var httpClient = httpClientFactory.CreateClient();
+            foreach (var video in videos)
             {
-                await SetVideoDescription(video, httpClient, _logger, cancellationToken);
-                await SetPromoCodes(video, httpClient, _logger, cancellationToken);
-            }
+                if (video.Description is null)
+                {
+                    await SetVideoDescription(video, httpClient, _logger, cancellationToken);
+                    await SetPromoCodes(video, httpClient, _logger, cancellationToken);
+                }
 
-            video.Processed = true;
-            await dbContext.SaveChangesAsync(cancellationToken);
+                video.Processed = true;
+                await dbContext.SaveChangesAsync(cancellationToken);
+            }
         }
 
         await Task.Delay(TimeSpan.FromMinutes(_workerDelay), cancellationToken);
@@ -70,7 +70,7 @@ public class ProcessVideo : BackgroundService
                 cancellationToken);
         if (string.IsNullOrEmpty(response))
         {
-            logger.LogWarning("Setting video description to empty because youtube response was empty. VideoId {}",
+            logger.LogWarning("Setting video description to empty because youtube response was empty. VideoId {id}",
                 video.Id);
             return;
         }
@@ -78,7 +78,7 @@ public class ProcessVideo : BackgroundService
         var description = ParseManager.GetVideoDescription(response, logger);
         if (string.IsNullOrEmpty(response))
         {
-            logger.LogWarning("Setting video description to empty because parsed description was empty. VideoId {}",
+            logger.LogWarning("Setting video description to empty because parsed description was empty. VideoId {id}",
                 video.Id);
             return;
         }

@@ -12,10 +12,13 @@ public static class PubSubHubbubRequestManager
     {
         var configProvider = ConfigurationProvider.GetConfiguration();
         var hmacSecret = configProvider.GetSection(AppSettings.HmacSecret).Value ??
-                         throw new ArgumentException("Missing secret for HmacPubSubHub in appsettings.json");
+                         throw new ArgumentException(
+                             $"Missing secret for {AppSettings.HmacSecret} in appsettings.json");
         var callBackUrl = (configProvider.GetSection(AppSettings.CallbackBaseUrl).Value ??
-                           throw new ArgumentException("Missing value for CallbackBaseUrl in appsettings.json"))
+                           throw new ArgumentException(
+                               $"Missing value for {AppSettings.CallbackBaseUrl} in appsettings.json"))
                           + URLPath.Callback;
+
         var apiUrl =
             $"{PubSubBase}/subscription-details" +
             $"?hub.callback={callBackUrl}" +
@@ -42,17 +45,23 @@ public static class PubSubHubbubRequestManager
         }
     }
 
-    public static async Task ChangeSubscription(HttpClient httpClient, ILogger logger, HubMode hubMode,
+    public static async Task<bool> ChangeSubscription(HttpClient httpClient, ILogger logger, HubMode hubMode,
         string channelId)
     {
         var configProvider = ConfigurationProvider.GetConfiguration();
         var hmacSecret = configProvider.GetSection(AppSettings.HmacSecret).Value ??
-                         throw new ArgumentException("Missing secret for HmacPubSubHub in appsettings.json");
+                         throw new ArgumentException(
+                             $"Missing secret for {AppSettings.HmacSecret} in appsettings.json");
+        var verifyToken = configProvider.GetSection(AppSettings.VerifyToken).Value ??
+                          throw new ArgumentException(
+                              $"Missing token for {AppSettings.VerifyToken} in appsettings.json");
         var callBackUrl = (configProvider.GetSection(AppSettings.CallbackBaseUrl).Value ??
-                           throw new ArgumentException("Missing value for CallbackBaseUrl in appsettings.json"))
+                           throw new ArgumentException(
+                               $"Missing value for {AppSettings.CallbackBaseUrl} in appsettings.json"))
                           + URLPath.Callback;
         var topicUrl = configProvider.GetSection(AppSettings.TopicYoutube).Value ??
-                       throw new ArgumentException("Missing value for TopicUrl Hub in appsettings.json");
+                       throw new ArgumentException(
+                           $"Missing value for {AppSettings.TopicYoutube} Hub in appsettings.json");
         const string apiUrl = $"{PubSubBase}/subscribe";
 
         var content = new Dictionary<string, string>
@@ -63,7 +72,7 @@ public static class PubSubHubbubRequestManager
             { "hub.verify", "sync" },
             { "hub.topic", topicUrl + channelId },
             { "hub.lease_numbers", "" },
-            { "hub.verify_token", "" }
+            { "hub.verify_token", verifyToken }
         };
 
         var payload = new FormUrlEncodedContent(content);
@@ -72,9 +81,10 @@ public static class PubSubHubbubRequestManager
         {
             logger.LogInformation("Subscription for channelId: {id} was changed to: {subType}",
                 channelId, hubMode.ToString());
-            return;
+            return true;
         }
 
-        logger.LogError("Subscription type could not be changed. Response: {}", response.Content.ToString());
+        logger.LogError("Subscription type could not be changed. Response: {response}", response.Content.ToString());
+        return false;
     }
 }
