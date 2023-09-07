@@ -4,6 +4,7 @@ using CallbackServerPromoCodes.Constants;
 using CallbackServerPromoCodes.DTOs;
 using CallbackServerPromoCodes.Enums;
 using CallbackServerPromoCodes.Manager;
+using CallbackServerPromoCodes.Middleware;
 using CallbackServerPromoCodes.Worker;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -39,6 +40,9 @@ app.UseCors(b => b
     .AllowAnyHeader()
 );
 app.UseOutputCache();
+
+// add middleware
+app.UseMiddleware<IpRateLimiting>();
 
 using var scope = app.Services.CreateScope();
 var dbContext = scope.ServiceProvider.GetRequiredService<AppDbContext>();
@@ -117,7 +121,7 @@ app.MapGet(URLPath.Callback, (HttpContext c) =>
 });
 
 // page should start at 1
-app.MapGet("api/promotions", async ([FromServices] AppDbContext context, [FromQuery] string productName,
+app.MapGet(URLPath.Promotions, async ([FromServices] AppDbContext context, [FromQuery] string productName,
     [FromQuery] int page, [FromQuery] int count) =>
 {
     if (string.IsNullOrWhiteSpace(productName))
