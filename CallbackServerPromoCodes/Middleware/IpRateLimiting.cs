@@ -8,6 +8,7 @@ namespace CallbackServerPromoCodes.Middleware;
 public class IpRateLimiting
 {
     private const int MaxRequest = 100;
+    private static readonly TimeSpan Period = TimeSpan.FromHours(1);
     private readonly ILogger _logger;
     private readonly RequestDelegate _next;
     private readonly Timer _resetTimer;
@@ -17,7 +18,7 @@ public class IpRateLimiting
     {
         _next = next;
         _ipRequestCounter = new Dictionary<string, int>();
-        _resetTimer = new Timer(ResetCounter, null, TimeSpan.Zero, TimeSpan.FromHours(1));
+        _resetTimer = new Timer(ResetCounter, null, TimeSpan.Zero, Period);
         _logger = loggerFactory.CreateLogger<IpRateLimiting>();
     }
 
