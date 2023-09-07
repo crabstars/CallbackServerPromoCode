@@ -1,5 +1,4 @@
 using System.Net;
-using CallbackServerPromoCodes.Constants;
 
 namespace CallbackServerPromoCodes.Middleware;
 
@@ -8,7 +7,7 @@ namespace CallbackServerPromoCodes.Middleware;
 /// </summary>
 public class IpRateLimiting
 {
-    private const int MaxRequest = 1;
+    private const int MaxRequest = 100;
     private readonly ILogger _logger;
     private readonly RequestDelegate _next;
     private readonly Timer _resetTimer;
@@ -24,36 +23,29 @@ public class IpRateLimiting
 
     public async Task InvokeAsync(HttpContext context)
     {
-        if (ShouldApplyMiddleware(context))
+        var ipAddress = context.Connection.RemoteIpAddress?.ToString();
+        if (ipAddress is null)
         {
-            var ipAddress = context.Connection.RemoteIpAddress?.ToString();
-            if (ipAddress is null)
-            {
-                await _next(context);
-                return;
-            }
-
-            if (_ipRequestCounter.TryGetValue(ipAddress, out var dailyRequests))
-            {
-                await CheckRequestLimit(context, dailyRequests);
-                _ipRequestCounter[ipAddress] += 1;
-            }
-            else
-            {
-                _ipRequestCounter[ipAddress] = 1;
-            }
-
             await _next(context);
+            return;
+        }
+
+        if (_ipRequestCounter.TryGetValue(ipAddress, out var ipRequestCount))
+        {
+            await CheckRequestLimit(context, ipRequestCount);
+            _ipRequestCounter[ipAddress] += 1;
         }
         else
         {
-            await _next(context);
+            _ipRequestCounter[ipAddress] = 1;
         }
+
+        await _next(context);
     }
 
     private async Task CheckRequestLimit(HttpContext context, int dailyRequests)
     {
-        if (dailyRequests > MaxRequest)
+        if (dailyRequests >= MaxRequest)
         {
             context.Response.StatusCode = (int)HttpStatusCode.TooManyRequests;
             await context.Response.WriteAsync("Request limit currently reached, try again in an hour.");
@@ -64,10 +56,5 @@ public class IpRateLimiting
     private void ResetCounter(object? state)
     {
         _ipRequestCounter = new Dictionary<string, int>();
-    }
-
-    private static bool ShouldApplyMiddleware(HttpContext context)
-    {
-        return context.Request.Path.Value!.Contains(URLPath.Promotions);
     }
 }

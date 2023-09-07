@@ -42,7 +42,8 @@ app.UseCors(b => b
 app.UseOutputCache();
 
 // add middleware
-app.UseMiddleware<IpRateLimiting>();
+app.UseWhen(context => context.Request.Path.StartsWithSegments(URLPath.Promotions),
+    appBuilder => { appBuilder.UseMiddleware<IpRateLimiting>(); });
 
 using var scope = app.Services.CreateScope();
 var dbContext = scope.ServiceProvider.GetRequiredService<AppDbContext>();
