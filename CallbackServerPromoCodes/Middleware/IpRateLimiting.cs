@@ -7,7 +7,7 @@ namespace CallbackServerPromoCodes.Middleware;
 /// </summary>
 public class IpRateLimiting
 {
-    private const int MaxRequest = 100;
+    private const int MaxRequests = 100;
     private static readonly TimeSpan Period = TimeSpan.FromHours(1);
     private readonly ILogger _logger;
     private readonly RequestDelegate _next;
@@ -46,7 +46,7 @@ public class IpRateLimiting
 
     private async Task CheckRequestLimit(HttpContext context, int dailyRequests)
     {
-        if (dailyRequests >= MaxRequest)
+        if (dailyRequests >= MaxRequests)
         {
             context.Response.StatusCode = (int)HttpStatusCode.TooManyRequests;
             await context.Response.WriteAsync("Request limit currently reached, try again in an hour.");
