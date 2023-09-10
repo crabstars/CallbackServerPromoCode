@@ -8,5 +8,5 @@ public class ExtractedGptPromo
 
     [JsonPropertyName("link")] public string Link { get; set; }
 
-    [JsonPropertyName("company")] public string Company { get; set; }
+    [JsonPropertyName("product")] public string Product { get; set; }
 }

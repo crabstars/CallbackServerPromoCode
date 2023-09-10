@@ -28,29 +28,33 @@ public class ProcessVideo : BackgroundService
 
     protected override async Task ExecuteAsync(CancellationToken cancellationToken)
     {
-        using var scope = _serviceProvider.CreateScope();
-        var dbContext = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-        var httpClientFactory = scope.ServiceProvider.GetRequiredService<IHttpClientFactory>();
-        var videos = await dbContext.Videos.Where(v => !v.Processed).ToListAsync(cancellationToken);
-
-        if (videos.Any())
+        while (!cancellationToken.IsCancellationRequested)
         {
-            _logger.LogInformation("Processing {count} videos", videos.Count);
-            var httpClient = httpClientFactory.CreateClient();
-            foreach (var video in videos)
+            using var scope = _serviceProvider.CreateScope();
+            var dbContext = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            var httpClientFactory = scope.ServiceProvider.GetRequiredService<IHttpClientFactory>();
+            var videos = await dbContext.Videos.Where(v => !v.Processed).ToListAsync(cancellationToken);
+
+            _logger.LogInformation("Start ProcessVideo worker");
+            if (videos.Any())
             {
-                if (video.Description is null)
+                _logger.LogInformation("Processing {count} videos", videos.Count);
+                var httpClient = httpClientFactory.CreateClient();
+                foreach (var video in videos)
                 {
-                    await SetVideoDescription(video, httpClient, _logger, cancellationToken);
-                    await SetPromoCodes(video, httpClient, _logger, cancellationToken);
+                    if (video.Description is null)
+                    {
+                        await SetVideoDescription(video, httpClient, _logger, cancellationToken);
+                        await SetPromoCodes(video, httpClient, _logger, cancellationToken);
+                    }
+
+                    video.Processed = true;
+                    await dbContext.SaveChangesAsync(cancellationToken);
                 }
-
-                video.Processed = true;
-                await dbContext.SaveChangesAsync(cancellationToken);
             }
-        }
 
-        await Task.Delay(TimeSpan.FromMinutes(_workerDelay), cancellationToken);
+            await Task.Delay(TimeSpan.FromMinutes(_workerDelay), cancellationToken);
+        }
     }
 
     private async Task SetPromoCodes(Video video, HttpClient httpClient, ILogger logger,
@@ -59,7 +63,10 @@ public class ProcessVideo : BackgroundService
         var promos =
             await OpenAIRequestManager.GetPromotions(httpClient, logger, _openAiApiKey, video.Description ?? "",
                 cancellationToken);
-        video.Promotions = promos.Select(p => new Promotion(p.Code, p.Link, p.Company)).ToList();
+        video.Promotions = promos.Where(p => !string.IsNullOrWhiteSpace(p.Product)
+                                             && (!string.IsNullOrWhiteSpace(p.Link) ||
+                                                 !string.IsNullOrWhiteSpace(p.Code)))
+            .Select(p => new Promotion(p.Code, p.Link, p.Product)).ToList();
     }
 
     private async Task SetVideoDescription(Video video, HttpClient httpClient, ILogger logger,

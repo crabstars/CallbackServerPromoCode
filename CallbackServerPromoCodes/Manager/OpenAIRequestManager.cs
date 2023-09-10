@@ -24,7 +24,7 @@ public static class OpenAIRequestManager
                 {
                     Role = "system",
                     Content =
-                        "You are an promotion link and promotion code extractor which returns a list of json object with an 'link' and 'code' and 'company' attribute."
+                        "You are an promotion link and promotion code extractor which returns a list of json object with an 'link' and 'code' and 'product' attribute."
                 },
                 new() { Role = "user", Content = description }
             }
