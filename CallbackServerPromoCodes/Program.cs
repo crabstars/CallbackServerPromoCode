@@ -134,7 +134,32 @@ app.MapGet(URLPath.Promotions, async ([FromServices] AppDbContext context, [From
             p.Link, p.Video.Link, p.Video.Channel.Name)).ToListAsync();
 }).CacheOutput(x => x.SetVaryByQuery("productName", "page", "count"));
 
-app.MapPost("api/youtube-feed/creator", async ([FromServices] AppDbContext context,
+// page should start at 1
+app.MapGet("api/youtube-feed/creator-names", async ([FromServices] AppDbContext context, [FromQuery] string creatorName,
+    [FromQuery] int page, [FromQuery] int count) =>
+{
+    if (string.IsNullOrWhiteSpace(creatorName))
+        return new List<string>();
+    return await context.Channels.Where(c => EF.Functions.Like(c.Name, creatorName + "%"))
+        .OrderBy(c => c.Name)
+        .Skip((page - 1) * count).Take(count).Select(c => c.Name).ToListAsync();
+}).CacheOutput(x => x.SetVaryByQuery("creatorName", "page", "count"));
+
+// page should start at 1
+app.MapGet("api/youtube-feed/creator-promotions", async ([FromServices] AppDbContext context,
+    [FromQuery] string creatorName,
+    [FromQuery] int page, [FromQuery] int count) =>
+{
+    if (string.IsNullOrWhiteSpace(creatorName))
+        return new List<SearchPromotionDto>();
+    return await context.Channels.Include(c => c.Videos).ThenInclude(v => v.Promotions)
+        .Where(c => c.Name == creatorName)
+        .Skip((page - 1) * count).Take(count).SelectMany(c => c.Videos.SelectMany(v => v.Promotions)
+            .Select(p => new SearchPromotionDto(p.Product, p.Code,
+                p.Link, p.Video.Link, p.Video.Channel.Name))).ToListAsync();
+}).CacheOutput(x => x.SetVaryByQuery("creatorName", "page", "count"));
+
+app.MapPost(URLPath.Creator, async ([FromServices] AppDbContext context,
     [FromServices] IHttpClientFactory httpClientFactory, [FromServices] ILoggerFactory loggerFactory,
     [FromQuery] string name, CancellationToken cancellationToken) =>
 {
@@ -158,7 +183,7 @@ app.MapPost("api/youtube-feed/creator", async ([FromServices] AppDbContext conte
     return Results.Ok("Channel inserted");
 }).AddEndpointFilter<ApiKeyEndpointFilter>();
 
-app.MapGet("api/youtube-feed/creator", async ([FromServices] AppDbContext context,
+app.MapGet(URLPath.Creator, async ([FromServices] AppDbContext context,
     [FromQuery] string name, [FromQuery] int page, [FromQuery] int count, CancellationToken cancellationToken) =>
 {
     return await context.Channels.Where(c => EF.Functions.Like(c.Name, name + "%"))
