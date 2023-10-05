@@ -27,20 +27,27 @@ public class SubscribeViaPubSubHub : BackgroundService
     {
         while (!cancellationToken.IsCancellationRequested)
         {
-            using var scope = _serviceProvider.CreateScope();
-            var dbContext = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-            var httpClientFactory = scope.ServiceProvider.GetRequiredService<IHttpClientFactory>();
-            var channels = await dbContext.Channels.Where(v => !v.Subscribed && v.Activated)
-                .ToListAsync(cancellationToken);
-
-            _logger.LogInformation("Start SubscribeViaPubSubHub worker");
-            if (channels.Any())
+            try
             {
-                _logger.LogInformation("Subscribing to {count} channels", channels.Count);
+                using var scope = _serviceProvider.CreateScope();
+                var dbContext = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+                var httpClientFactory = scope.ServiceProvider.GetRequiredService<IHttpClientFactory>();
+                var channels = await dbContext.Channels.Where(v => !v.Subscribed && v.Activated)
+                    .ToListAsync(cancellationToken);
 
-                var httpClient = httpClientFactory.CreateClient();
+                _logger.LogInformation("Start SubscribeViaPubSubHub worker");
+                if (channels.Any())
+                {
+                    _logger.LogInformation("Subscribing to {count} channels", channels.Count);
 
-                await SubscribeToChannels(channels, httpClient, dbContext, cancellationToken);
+                    var httpClient = httpClientFactory.CreateClient();
+
+                    await SubscribeToChannels(channels, httpClient, dbContext, cancellationToken);
+                }
+            }
+            catch (Exception e)
+            {
+                _logger.LogError(e.Message);
             }
 
             await Task.Delay(TimeSpan.FromMinutes(_workerDelay), cancellationToken);

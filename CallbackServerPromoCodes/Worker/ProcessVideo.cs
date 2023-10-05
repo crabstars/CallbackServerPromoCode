@@ -30,27 +30,34 @@ public class ProcessVideo : BackgroundService
     {
         while (!cancellationToken.IsCancellationRequested)
         {
-            using var scope = _serviceProvider.CreateScope();
-            var dbContext = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-            var httpClientFactory = scope.ServiceProvider.GetRequiredService<IHttpClientFactory>();
-            var videos = await dbContext.Videos.Where(v => !v.Processed).ToListAsync(cancellationToken);
-
-            _logger.LogInformation("Start ProcessVideo worker");
-            if (videos.Any())
+            try
             {
-                _logger.LogInformation("Processing {count} videos", videos.Count);
-                var httpClient = httpClientFactory.CreateClient();
-                foreach (var video in videos)
-                {
-                    if (video.Description is null)
-                    {
-                        await SetVideoDescription(video, httpClient, _logger, cancellationToken);
-                        await SetPromoCodes(video, httpClient, _logger, cancellationToken);
-                    }
+                using var scope = _serviceProvider.CreateScope();
+                var dbContext = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+                var httpClientFactory = scope.ServiceProvider.GetRequiredService<IHttpClientFactory>();
+                var videos = await dbContext.Videos.Where(v => !v.Processed).ToListAsync(cancellationToken);
 
-                    video.Processed = true;
-                    await dbContext.SaveChangesAsync(cancellationToken);
+                _logger.LogInformation("Start ProcessVideo worker");
+                if (videos.Any())
+                {
+                    _logger.LogInformation("Processing {count} videos", videos.Count);
+                    var httpClient = httpClientFactory.CreateClient();
+                    foreach (var video in videos)
+                    {
+                        if (video.Description is null)
+                        {
+                            await SetVideoDescription(video, httpClient, _logger, cancellationToken);
+                            await SetPromoCodes(video, httpClient, _logger, cancellationToken);
+                        }
+
+                        video.Processed = true;
+                        await dbContext.SaveChangesAsync(cancellationToken);
+                    }
                 }
+            }
+            catch (Exception e)
+            {
+                _logger.LogError(e.Message);
             }
 
             await Task.Delay(TimeSpan.FromMinutes(_workerDelay), cancellationToken);
